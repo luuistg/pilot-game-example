@@ -7,7 +7,7 @@ function getGameConfig() {
     const params = new URLSearchParams(window.location.search);
 
     const matchId = params.get('matchId');
-    const userId = params.get('userId');
+    const userId = params.get('userId') ?? params.get('playerId') ?? params.get('player');
 
     console.log('Datos recibidos de la web:', { matchId, userId });
 
@@ -36,8 +36,8 @@ export class GameScene extends Phaser.Scene {
 
     init(data?: { matchId?: string, userId?: string }) {
         const urlConfig = getGameConfig();
-        this.matchId = data?.matchId ?? urlConfig.matchId;
-        this.userId = data?.userId ?? urlConfig.userId;
+        this.matchId = urlConfig.matchId ?? data?.matchId ?? null;
+        this.userId = urlConfig.userId ?? data?.userId ?? null;
         console.log('Iniciando partida:', this.matchId, 'Usuario:', this.userId);
     }
 

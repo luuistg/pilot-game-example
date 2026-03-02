@@ -12,9 +12,10 @@ export class MenuScene extends Phaser.Scene {
 
     init() {
         const params = new URLSearchParams(window.location.search);
+        const userId = params.get('player');
         this.externalData = {
             matchId: params.get('matchId'),
-            userId: params.get('userId')
+            userId
         };
 
         console.log('Datos recibidos desde React:', this.externalData);
