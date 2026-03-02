@@ -2,6 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export interface LaunchContext {
+    gameId: string | null;
     matchId: string | null;
     playerId: string | null;
     player2Id: string | null;
@@ -20,8 +21,54 @@ export interface SubmitGameResultInput {
 export interface SubmitGameResultOutput {
     ok: boolean;
     conflict: boolean;
-    source: 'rpc' | 'table' | 'none';
+    source: 'rpc' | 'table' | 'cache' | 'none';
     error?: PostgrestError | Error | null;
+}
+
+const SUBMITTED_RESULTS_KEY = 'pilot_game_submitted_results_v1';
+const submittedResultsMemory = new Set<string>();
+const inFlightRequests = new Set<string>();
+
+function getResultKey(matchId: string, playerId: string): string {
+    return `${matchId}:${playerId}`;
+}
+
+function getSubmittedResults(): Set<string> {
+    try {
+        if (typeof window === 'undefined' || !window.sessionStorage) {
+            return new Set(submittedResultsMemory);
+        }
+
+        const raw = window.sessionStorage.getItem(SUBMITTED_RESULTS_KEY);
+        if (!raw) {
+            return new Set(submittedResultsMemory);
+        }
+
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return new Set(parsed.filter((item) => typeof item === 'string'));
+        }
+
+        return new Set(submittedResultsMemory);
+    } catch {
+        return new Set(submittedResultsMemory);
+    }
+}
+
+function markResultSubmitted(key: string): void {
+    submittedResultsMemory.add(key);
+
+    try {
+        if (typeof window === 'undefined' || !window.sessionStorage) {
+            return;
+        }
+
+        const current = getSubmittedResults();
+        current.add(key);
+        window.sessionStorage.setItem(SUBMITTED_RESULTS_KEY, JSON.stringify(Array.from(current)));
+    } catch {
+        // noop
+    }
 }
 
 function getFirstParam(params: URLSearchParams, keys: string[]): string | null {
@@ -47,6 +94,7 @@ export function getLaunchContextFromUrl(search: string = window.location.search)
     const params = new URLSearchParams(search);
 
     const context: LaunchContext = {
+        gameId: getFirstParam(params, ['gameId', 'game_id', 'game']),
         matchId: getFirstParam(params, ['matchId', 'match_id', 'match']),
         playerId: getFirstParam(params, ['player', 'userId', 'playerId', 'player1', 'player_1']),
         player2Id: getFirstParam(params, ['player2', 'player2Id', 'player_2']),
@@ -169,15 +217,41 @@ export async function submitGameResult(input: SubmitGameResultInput): Promise<Su
         };
     }
 
-    const rpcResult = await submitByRpc(input);
-    if (rpcResult.ok) {
-        return rpcResult;
+    const resultKey = getResultKey(input.matchId, input.playerId);
+    const submittedResults = getSubmittedResults();
+    if (submittedResults.has(resultKey)) {
+        return {
+            ok: true,
+            conflict: false,
+            source: 'cache'
+        };
     }
 
-    const tableResult = await submitByTable(input);
-    if (tableResult.ok) {
+    if (inFlightRequests.has(resultKey)) {
+        return {
+            ok: true,
+            conflict: false,
+            source: 'cache'
+        };
+    }
+
+    inFlightRequests.add(resultKey);
+
+    try {
+        const rpcResult = await submitByRpc(input);
+        if (rpcResult.ok) {
+            markResultSubmitted(resultKey);
+            return rpcResult;
+        }
+
+        const tableResult = await submitByTable(input);
+        if (tableResult.ok) {
+            markResultSubmitted(resultKey);
+            return tableResult;
+        }
+
         return tableResult;
+    } finally {
+        inFlightRequests.delete(resultKey);
     }
-
-    return tableResult;
 }

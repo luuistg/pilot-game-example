@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
+import { getLaunchContextFromUrl } from '../lib/gamePlatform';
 
 export class MenuScene extends Phaser.Scene {
-    private externalData: { matchId: string | null; userId: string | null } = {
+    private externalData: { gameId: string | null; matchId: string | null; userId: string | null; player2Id: string | null } = {
+        gameId: null,
         matchId: null,
-        userId: null
+        userId: null,
+        player2Id: null
     };
 
     constructor() {
@@ -11,11 +14,12 @@ export class MenuScene extends Phaser.Scene {
     }
 
     init() {
-        const params = new URLSearchParams(window.location.search);
-        const userId = params.get('player');
+        const context = getLaunchContextFromUrl();
         this.externalData = {
-            matchId: params.get('matchId'),
-            userId
+            gameId: context.gameId,
+            matchId: context.matchId,
+            userId: context.playerId,
+            player2Id: context.player2Id
         };
 
         console.log('Datos recibidos desde React:', this.externalData);

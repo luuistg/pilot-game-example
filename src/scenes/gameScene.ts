@@ -1,19 +1,7 @@
 import Phaser from 'phaser';
 import { Player } from '../entities/Player';
 import { Obstacle } from '../entities/Obstacle';
-import { supabase } from '../lib/supabase';
-
-// Utilidad externa para limpiar el componente
-const getURLData = () => {
-    const params = new URLSearchParams(window.location.search);
-    return {
-        matchId: params.get('matchId'),
-        userId: params.get('userId') ?? params.get('playerId') ?? params.get('player')
-    };
-};
-
-const isUuid = (val: string | null) => 
-    val ? /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val) : false;
+import { getLaunchContextFromUrl, submitGameResult } from '../lib/gamePlatform';
 
 export class GameScene extends Phaser.Scene {
     private player!: Player;
@@ -25,20 +13,24 @@ export class GameScene extends Phaser.Scene {
     private score: number = 0;
     private nextSpawnTime: number = 0;
     private isGameOver: boolean = false;
+    private gameId: string | null = null;
     private matchId: string | null = null;
     private userId: string | null = null;
+    private player2Id: string | null = null;
 
     constructor() {
         super('GameScene');
     }
 
-    init(data?: { matchId?: string, userId?: string }) {
-        const urlData = getURLData();
-        this.matchId = urlData.matchId ?? data?.matchId ?? null;
-        this.userId = urlData.userId ?? data?.userId ?? null;
+    init(data?: { gameId?: string, matchId?: string, userId?: string, player2Id?: string }) {
+        const launchContext = getLaunchContextFromUrl();
+        this.gameId = launchContext.gameId ?? data?.gameId ?? null;
+        this.matchId = launchContext.matchId ?? data?.matchId ?? null;
+        this.userId = launchContext.playerId ?? data?.userId ?? null;
+        this.player2Id = launchContext.player2Id ?? data?.player2Id ?? null;
         this.isGameOver = false;
         this.score = 0;
-        console.log('🎮 Sesión:', { matchId: this.matchId, userId: this.userId });
+        console.log('Sesión:', { gameId: this.gameId, matchId: this.matchId, userId: this.userId, player2Id: this.player2Id });
     }
 
     preload() {
@@ -112,27 +104,25 @@ export class GameScene extends Phaser.Scene {
         const finalScore = Math.floor(this.score);
         this.scoreText.setText(`Score: ${finalScore}`);
 
-        // Guardado en Base de Datos
-        if (isUuid(this.matchId) && isUuid(this.userId)) {
+        // Guardado en Base de Datos mediante librería
+        if (!this.matchId || !this.userId) {
+            console.warn('⚠️ Guardado omitido: IDs faltantes o inválidos');
+        } else {
             try {
-                const { error } = await supabase.rpc('register_final_result', {
-                    p_match_id: this.matchId,
-                    p_winner_id: this.userId,
-                    p_score_p1: finalScore,
-                    p_points_delta: 10
+                const result = await submitGameResult({
+                    matchId: this.matchId,
+                    playerId: this.userId,
+                    score: finalScore
                 });
 
-                if (error) {
-                    // Manejo silencioso de conflictos (409) si el resultado ya existe
-                    if (error.code !== '23505') console.error('Error RPC:', error.message);
+                if (result.ok) {
+                    console.log(`Resultado guardado vía ${result.source}${result.conflict ? ' (conflicto controlado)' : ''}`);
                 } else {
-                    console.log('✅ Resultado guardado');
+                    console.error('No se pudo guardar resultado', result.error);
                 }
             } catch (e) {
-                console.error('Error de red:', e);
+                console.error('Error de red/ejecución al guardar:', e);
             }
-        } else {
-            console.warn('⚠️ Guardado omitido: IDs faltantes o inválidos');
         }
 
         this.transitionToGameOver(finalScore);
@@ -142,6 +132,7 @@ export class GameScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => {
             this.scene.start('GameOverScene', {
                 score,
+                gameId: this.gameId,
                 matchId: this.matchId,
                 userId: this.userId
             });

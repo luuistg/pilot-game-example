@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 export class GameOverScene extends Phaser.Scene {
     private finalScore: number = 0;
+    private gameId: string | null = null;
     private matchId: string | null = null;
     private userId: string | null = null;
 
@@ -10,8 +11,9 @@ export class GameOverScene extends Phaser.Scene {
     }
 
     // El método init permite recibir datos de la escena anterior
-    init(data: { score: number, matchId?: string | null, userId?: string | null }) {
+    init(data: { score: number, gameId?: string | null, matchId?: string | null, userId?: string | null }) {
         this.finalScore = data.score;
+        this.gameId = data.gameId ?? null;
         this.matchId = data.matchId ?? null;
         this.userId = data.userId ?? null;
     }
@@ -43,6 +45,7 @@ export class GameOverScene extends Phaser.Scene {
         // Al pulsar repetir, volvemos a la GameScene
         retryBtn.on('pointerdown', () => {
             this.scene.start('GameScene', {
+                gameId: this.gameId ?? undefined,
                 matchId: this.matchId ?? undefined,
                 userId: this.userId ?? undefined
             });
