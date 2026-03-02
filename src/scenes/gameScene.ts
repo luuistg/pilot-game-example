@@ -3,6 +3,17 @@ import { Player } from '../entities/Player';
 import { Obstacle } from '../entities/Obstacle';
 import { supabase } from '../lib/supabase';
 
+function getGameConfig() {
+    const params = new URLSearchParams(window.location.search);
+
+    const matchId = params.get('matchId');
+    const userId = params.get('userId');
+
+    console.log('Datos recibidos de la web:', { matchId, userId });
+
+    return { matchId, userId };
+}
+
 export class GameScene extends Phaser.Scene {
     private player!: Player;
     private sky!: Phaser.GameObjects.TileSprite;
@@ -16,17 +27,18 @@ export class GameScene extends Phaser.Scene {
     private obstacles!: Phaser.Physics.Arcade.Group;
     private nextSpawnTime: number = 0;
 
-    private matchId!: string;
-    private userId!: string;
+    private matchId: string | null = null;
+    private userId: string | null = null;
 
     constructor() {
         super('GameScene');
     }
 
-    init(data: { matchId: string, userId: string }) {
-        this.matchId = data.matchId;
-        this.userId = data.userId;
-        console.log("Iniciando partida:", this.matchId);
+    init(data?: { matchId?: string, userId?: string }) {
+        const urlConfig = getGameConfig();
+        this.matchId = data?.matchId ?? urlConfig.matchId;
+        this.userId = data?.userId ?? urlConfig.userId;
+        console.log('Iniciando partida:', this.matchId, 'Usuario:', this.userId);
     }
 
     preload() {
@@ -137,6 +149,18 @@ export class GameScene extends Phaser.Scene {
         const finalScore = Math.floor(this.score); // <-- usar score actual (sin resetear)
         this.scoreText.setText(`Score: ${finalScore}`); // <-- opcional: fijar texto final
 
+        if (!this.matchId || !this.userId) {
+            console.warn('No hay matchId/userId; se omite guardado en DB.');
+            this.time.delayedCall(1000, () => {
+                this.scene.start('GameOverScene', {
+                    score: finalScore,
+                    matchId: this.matchId,
+                    userId: this.userId
+                });
+            });
+            return;
+        }
+
         try {
             await supabase.rpc('register_final_result', {
                 p_match_id: this.matchId,
@@ -151,7 +175,11 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.time.delayedCall(1000, () => {
-            this.scene.start('GameOverScene', { score: finalScore });
+            this.scene.start('GameOverScene', {
+                score: finalScore,
+                matchId: this.matchId,
+                userId: this.userId
+            });
         });
     }
 }

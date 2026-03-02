@@ -1,9 +1,23 @@
 import Phaser from 'phaser';
-import { supabase } from '../lib/supabase';
 
 export class MenuScene extends Phaser.Scene {
+    private externalData: { matchId: string | null; userId: string | null } = {
+        matchId: null,
+        userId: null
+    };
+
     constructor() {
         super('MenuScene');
+    }
+
+    init() {
+        const params = new URLSearchParams(window.location.search);
+        this.externalData = {
+            matchId: params.get('matchId'),
+            userId: params.get('userId')
+        };
+
+        console.log('Datos recibidos desde React:', this.externalData);
     }
 
     preload() {
@@ -28,49 +42,10 @@ export class MenuScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
 
-        startButton.on('pointerdown', async () => {
-            // Deshabilitar el botón para evitar múltiples clics
+        startButton.on('pointerdown', () => {
             startButton.disableInteractive();
-            startButton.setText('LOADING...');
 
-            this.scene.start('GameScene'); // Iniciamos la escena del juego sin pasar datos por ahora
-            
-            // Llamamos a la función que crea el match en Supabase
-            //await this.startNewGame(); 
+            this.scene.start('GameScene', this.externalData);
         });
     }
-
-    async startNewGame() {
-    // 1. Obtenemos el usuario logueado
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-        alert("Debes estar logueado");
-        return;
-    }
-
-    // 2. Creamos la partida en la tabla 'matches'
-    const { data: match, error } = await supabase
-        .from('matches')
-        .insert({
-            game_id: '61d7df63-b81d-4139-9345-3b104752d2cd', // El UUID de tu tabla 'games'
-            player_1: user.id,         // FK a profiles
-            status: 'in_progress'
-        })
-        .select()
-        .single();
-
-    if (error) {
-        console.error("Error creating match:", error);
-        return;
-    }
-
-    if (match) {
-        // 3. PASAR DATOS: Los enviamos como un objeto en el segundo parámetro
-        this.scene.start('GameScene', { 
-            matchId: match.id, 
-            userId: user.id
-        });
-    }
-}
 }
