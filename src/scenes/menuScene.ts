@@ -15,6 +15,8 @@ export class MenuScene extends Phaser.Scene {
     async init() {
         // Mostrar la URL actual para depuración
         console.log('URL actual:', window.location.href);
+=======
+>>>>>>> a01ae42a677fbbb196babe8b2e7de3f779acc777
         // Recuperar parámetros de la URL usando el SDK
 
         const ctx = getLaunchContextFromUrl();
