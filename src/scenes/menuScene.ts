@@ -13,6 +13,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     async init() {
+<<<<<<< HEAD
         // Mostrar la URL actual para depuración
         console.log('URL actual:', window.location.href);
 =======
