@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getLaunchContextFromUrl, createMatch, submitGameResult, updatePlayerScore } from 'm4g-sdk';
+import { getLaunchContextFromUrl, createMatch } from 'm4g-sdk';
 
 export class MenuScene extends Phaser.Scene {
     private externalData: { gameId: string | null; matchId: string | null; userId: string | null } = {
@@ -14,9 +14,6 @@ export class MenuScene extends Phaser.Scene {
 
     async init() {
 
-        // Mostrar la URL actual para depuración
-        console.log('URL actual:', window.location.href);
-
         // Recuperar parámetros de la URL usando el SDK
 
         const ctx = getLaunchContextFromUrl();
@@ -30,8 +27,7 @@ export class MenuScene extends Phaser.Scene {
         if (!this.externalData.matchId && this.externalData.gameId && this.externalData.userId) {
             const result = await createMatch({
                 gameId: this.externalData.gameId,
-                player1: this.externalData.userId,
-                player2: '' // Provide an empty string or a valid player2 id as required
+                player1: this.externalData.userId, 
             });
             if (result.ok) {
                 this.externalData.matchId = result.matchId ?? null;
@@ -39,30 +35,6 @@ export class MenuScene extends Phaser.Scene {
             } else {
                 console.error('Error creando partida:', result.error);
             }
-        }
-
-        // Insertar resultado inicial en la base de datos (score 0)
-        if (this.externalData.matchId && this.externalData.userId) {
-            const insertResult = await submitGameResult({
-                matchId: this.externalData.matchId,
-                playerId: this.externalData.userId,
-                score: 0,
-                gameMode: 'sp'
-            });
-            if (insertResult.ok) {
-                console.log('Resultado inicial insertado');
-            } else {
-                console.error('Error insertando resultado inicial:', insertResult.error);
-            }
-        }
-
-        // Enviar score inicial (0)
-        if (this.externalData.gameId && this.externalData.userId) {
-            await updatePlayerScore({
-                userId: this.externalData.userId,
-                gameId: this.externalData.gameId,
-                score: 0
-            });
         }
 
         console.log('Datos recibidos desde React:', this.externalData);
