@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Player } from '../entities/Player';
 import { Obstacle } from '../entities/Obstacle';
-import { getLaunchContextFromUrl, submitGameResult } from '../lib/gamePlatform';
+import { getLaunchContextFromUrl, submitGameResult, updatePlayerScore } from 'm4g-sdk';
 
 export class GameScene extends Phaser.Scene {
     private player!: Player;
@@ -16,21 +16,20 @@ export class GameScene extends Phaser.Scene {
     private gameId: string | null = null;
     private matchId: string | null = null;
     private userId: string | null = null;
-    private player2Id: string | null = null;
+    // player2Id eliminado, solo single player
 
     constructor() {
         super('GameScene');
     }
 
-    init(data?: { gameId?: string, matchId?: string, userId?: string, player2Id?: string }) {
+    init(data?: { gameId?: string, matchId?: string, userId?: string }) {
         const launchContext = getLaunchContextFromUrl();
         this.gameId = launchContext.gameId ?? data?.gameId ?? null;
         this.matchId = launchContext.matchId ?? data?.matchId ?? null;
         this.userId = launchContext.playerId ?? data?.userId ?? null;
-        this.player2Id = launchContext.player2Id ?? data?.player2Id ?? null;
         this.isGameOver = false;
         this.score = 0;
-        console.log('Sesión:', { gameId: this.gameId, matchId: this.matchId, userId: this.userId, player2Id: this.player2Id });
+        console.log('Sesión:', { gameId: this.gameId, matchId: this.matchId, userId: this.userId });
     }
 
     preload() {
@@ -104,22 +103,29 @@ export class GameScene extends Phaser.Scene {
         const finalScore = Math.floor(this.score);
         this.scoreText.setText(`Score: ${finalScore}`);
 
-        // Guardado en Base de Datos mediante librería
-        if (!this.matchId || !this.userId) {
+        // Guardado en Base de Datos mediante SDK
+        if (!this.matchId || !this.userId || !this.gameId) {
             console.warn('⚠️ Guardado omitido: IDs faltantes o inválidos');
         } else {
             try {
+                // Registrar resultado de la partida
                 const result = await submitGameResult({
                     matchId: this.matchId,
                     playerId: this.userId,
-                    score: finalScore
+                    score: finalScore,
+                    gameMode: 'sp'
                 });
-
                 if (result.ok) {
                     console.log(`Resultado guardado vía ${result.source}${result.conflict ? ' (conflicto controlado)' : ''}`);
                 } else {
                     console.error('No se pudo guardar resultado', result.error);
                 }
+                // Actualizar score del jugador
+                await updatePlayerScore({
+                    userId: this.userId,
+                    gameId: this.gameId,
+                    score: finalScore
+                });
             } catch (e) {
                 console.error('Error de red/ejecución al guardar:', e);
             }
