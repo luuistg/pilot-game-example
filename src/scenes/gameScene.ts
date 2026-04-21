@@ -120,12 +120,6 @@ export class GameScene extends Phaser.Scene {
                 } else {
                     console.error('No se pudo guardar resultado', result.error);
                 }
-                // Actualizar score del jugador
-                await updatePlayerScore({
-                    userId: this.userId,
-                    gameId: this.gameId,
-                    score: finalScore
-                });
             } catch (e) {
                 console.error('Error de red/ejecución al guardar:', e);
             }
